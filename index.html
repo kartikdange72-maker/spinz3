@@ -12,16 +12,14 @@
       min-height:100vh;padding:16px;color:#111827;
     }
     .container{
-      max-width:1900px; /* wider so 4 big photos fit */
-      margin:0 auto;background:#fff;border-radius:16px;
+      max-width:1900px;margin:0 auto;background:#fff;border-radius:16px;
       box-shadow:0 12px 34px rgba(0,0,0,.10);overflow:hidden;
     }
     header{
       background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
       color:#fff;padding:18px;text-align:center;
     }
-    header h1{font-size:1.55rem;margin-bottom:6px}
-    header p{opacity:.92;font-size:.95rem}
+    header h1{font-size:1.55rem;margin-bottom:4px}
 
     .toolbar{
       padding:10px 12px;
@@ -32,7 +30,7 @@
     .toolbar .left{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .toolbar input{
       padding:9px 11px;border:2px solid #e5e7eb;border-radius:10px;
-      font-size:.95rem;min-width:280px;outline:none;
+      font-size:.95rem;min-width:260px;outline:none;
     }
     .toolbar input:focus{border-color:#667eea}
     .toolbar select{
@@ -98,22 +96,21 @@
       background:#fff;
     }
 
-    /* ✅ 4 photos in one row + BIGGER boxes */
+    /* Photos grid: default is 4 columns; JS will shrink to 1 when filtering a single photo type */
     .photos{
       border:1px solid #eef2f7;
       border-radius:12px;
-      padding:12px; /* more breathing room */
+      padding:12px;
       background:#fff;
-
       display:grid;
       grid-template-columns: repeat(4, 1fr);
-      gap:14px; /* more spacing */
+      gap:14px;
     }
     .photoBox{
       min-width:0;
       border:1px solid #f0f0f0;
       border-radius:12px;
-      padding:10px; /* bigger */
+      padding:10px;
       background:#fff;
     }
     .photoLabel{
@@ -124,24 +121,19 @@
 
     .imgWrap{
       width:100%;
-      height:380px;  /* ✅ MAIN SIZE INCREASE (was 280px) */
+      height:380px; /* photo size */
       border-radius:12px;
       background:#f8f9fa;
       display:flex;align-items:center;justify-content:center;
       overflow:hidden;position:relative;
     }
     .imgWrap img{
-      max-width:100%;
-      max-height:100%;
-      width:auto;height:auto;
-      object-fit:contain;
-      transition:transform .22s ease;
-      cursor:pointer;
+      max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;
+      transition:transform .22s ease;cursor:pointer;
     }
     .imgWrap:hover img{transform:scale(1.02)}
     .noImg{
-      height:380px; /* match imgWrap */
-      border-radius:12px;background:#f8f9fa;
+      height:380px;border-radius:12px;background:#f8f9fa;
       display:flex;align-items:center;justify-content:center;
       color:#9ca3af;font-style:italic;text-align:center;padding:12px;
     }
@@ -178,7 +170,7 @@
       border:1px dashed #e5e7eb;border-radius:12px;
     }
 
-    /* Responsive fallback (only when screen is too small) */
+    /* responsive fallback (only when screen is too small) */
     @media (max-width: 1400px){
       .photos{ grid-template-columns: repeat(2, 1fr); }
       .imgWrap,.noImg{ height:340px; }
@@ -232,7 +224,6 @@
   <div class="container">
     <header>
       <h1>Spinz Audit Photo Gallery</h1>
-      <p></p>
     </header>
 
     <div class="toolbar">
@@ -240,10 +231,21 @@
         <input id="q" type="text" placeholder="Search: Rtr / Outlet / Town / Auditor / Remarks..." />
         <select id="townFilter"><option value="">Town: All</option></select>
         <select id="auditorFilter"><option value="">Auditor: All</option></select>
+
+        <!-- ✅ Photo filter -->
+        <select id="photoFilter">
+          <option value="all">Photos: All</option>
+          <option value="Shop_Front_Photo_Link">Photos: Shop Front</option>
+          <option value="Sample_Box_Photo_Link">Photos: Sample Box</option>
+          <option value="Spinz_Stock_Photo_Link">Photos: Spinz Stock</option>
+          <option value="Shelf_Photo_Link">Photos: Shelf</option>
+        </select>
+
         <select id="verifiedScope">
           <option value="verified">Scope: Verified</option>
           <option value="all">Scope: All</option>
         </select>
+
         <button class="btn primary" id="btnFilter">Apply</button>
         <button class="btn warn" id="btnReset">Show All</button>
         <button class="btn ghost" id="btnReload">Reload</button>
@@ -323,6 +325,8 @@
     const townFilter = document.getElementById("townFilter");
     const auditorFilter = document.getElementById("auditorFilter");
     const verifiedScope = document.getElementById("verifiedScope");
+    const photoFilter = document.getElementById("photoFilter");
+
     const btnFilter = document.getElementById("btnFilter");
     const btnReset = document.getElementById("btnReset");
     const btnReload = document.getElementById("btnReload");
@@ -399,6 +403,12 @@
       return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
     }
 
+    function getPhotosToShow(){
+      const key = normalizeCell(photoFilter.value);
+      if (!key || key === "all") return COLS.photos;
+      return COLS.photos.filter(p => p.key === key);
+    }
+
     function buildCard(row){
       const rtr = normalizeCell(row[COLS.rtr]);
       const outlet = normalizeCell(row[COLS.outlet]);
@@ -460,7 +470,9 @@
         </div>
       `;
 
-      const photosHtml = COLS.photos.map(p => {
+      const photosToShow = getPhotosToShow();
+
+      const photosHtml = photosToShow.map(p => {
         const raw = row[p.key];
         const url = convertDriveLink(raw);
         return `
@@ -481,13 +493,22 @@
 
       const card = document.createElement("div");
       card.className = "card";
-      card.innerHTML = headHtml + `<div class="cardBody"><div class="photos">${photosHtml}</div>${descHtml}</div>`;
+
+      // ✅ If user selects a single photo type, render 1 column so it doesn't look stupid with empty space
+      const cols = Math.max(1, Math.min(4, photosToShow.length));
+      card.innerHTML =
+        headHtml +
+        `<div class="cardBody">
+           <div class="photos" style="grid-template-columns: repeat(${cols}, 1fr)">${photosHtml}</div>
+           ${descHtml}
+         </div>`;
+
       return card;
     }
 
     function render(list){
       grid.innerHTML = "";
-      meta.textContent = `Showing ${list.length} / ${rows.length} records`;
+      meta.textContent = `Showing ${list.length} / ${rows.length}`;
 
       if (!list.length){
         grid.innerHTML = `
@@ -527,7 +548,7 @@
         const hay = [
           r[COLS.rtr], r[COLS.outlet], r[COLS.town], r[COLS.auditor],
           r[COLS.shopOpen], r[COLS.dist],
-          r["Remarks"], r["Customer_Feedback"], r["Spinz_Stock_SKUs"]
+          r["Remarks"], r["Customer_Feedback"], r["Spinz_Stock_SKUs"],
         ].map(x => lower(x)).join(" | ");
         return hay.includes(term);
       });
@@ -535,6 +556,7 @@
       render(filtered);
     }
 
+    // MODAL
     function openImgModal(src){
       imgModalImg.src = src;
       imgModal.classList.add("open");
@@ -591,6 +613,7 @@
         populateFilterDropdowns(rows);
 
         verifiedScope.value = "verified";
+        photoFilter.value = "all";
         filtered = [...verifiedBase];
 
         render(filtered);
@@ -604,12 +627,14 @@
       }
     }
 
+    // EVENTS
     btnFilter.addEventListener("click", applyFilter);
     btnReset.addEventListener("click", () => {
       q.value = "";
       townFilter.value = "";
       auditorFilter.value = "";
       verifiedScope.value = "all";
+      photoFilter.value = "all";
       applyFilter();
     });
     btnReload.addEventListener("click", loadSheet);
@@ -618,9 +643,9 @@
     townFilter.addEventListener("change", applyFilter);
     auditorFilter.addEventListener("change", applyFilter);
     verifiedScope.addEventListener("change", applyFilter);
+    photoFilter.addEventListener("change", applyFilter);
 
     loadSheet();
   </script>
 </body>
-
 </html>
