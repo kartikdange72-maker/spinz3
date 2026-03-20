@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Spinz Audit Photo Gallery</title>
+  <title>Spinz Audit Photo Gallery | Clean View</title>
 
   <style>
     *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}
@@ -138,7 +138,7 @@
       color:#9ca3af;font-style:italic;text-align:center;padding:12px;
     }
 
-    /* Compact description */
+    /* Compact description - hidden fields (Remarks, During Purchase SKU, Distance) removed */
     .descCompact{
       border:1px solid #eef2f7;border-radius:12px;padding:10px;background:#fbfdff;
       display:flex;flex-direction:column;gap:8px;
@@ -228,11 +228,11 @@
 
     <div class="toolbar">
       <div class="left">
-        <input id="q" type="text" placeholder="Search: Rtr / Outlet / Town / Auditor / Remarks..." />
+        <input id="q" type="text" placeholder="Search: Rtr / Outlet / Town / Auditor..." />
         <select id="townFilter"><option value="">Town: All</option></select>
         <select id="auditorFilter"><option value="">Auditor: All</option></select>
 
-        <!-- ✅ Photo filter -->
+        <!-- Photo filter (single type) -->
         <select id="photoFilter">
           <option value="all">Photos: All</option>
           <option value="Shop_Front_Photo_Link">Photos: Shop Front</option>
@@ -294,7 +294,7 @@
         "Avg_Samples_Per_Week",
         "Consumers_Wanted_To_Buy_Spinz_After_Sample",
         "Consumers_Wanted_To_Buy_Spinz_Other",
-        "During_Purchase_SKU_Details",
+        "During_Purchase_SKU_Details",   // will be hidden from UI
         "Spinz_Packs_Per_Month",
         "Spinz_Repeat_Frequency",
         "Spinz_Repeat_Frequency_Other",
@@ -306,7 +306,7 @@
         "Willingness_to_Switch",
         "Spinz_Stocked",
         "Spinz_Stock_SKUs",
-        "Remarks"
+        "Remarks"                       // will be hidden from UI
       ],
       photos: [
         { key: "Shop_Front_Photo_Link", label: "Shop Front" },
@@ -315,6 +315,9 @@
         { key: "Shelf_Photo_Link", label: "Shelf" }
       ]
     };
+
+    // Fields to exclude from audit summary (Remarks, During Purchase SKU Details, and Distance is a separate pill)
+    const HIDDEN_DESC_FIELDS = new Set(["Remarks", "During_Purchase_SKU_Details"]);
 
     const grid = document.getElementById("grid");
     const loading = document.getElementById("loading");
@@ -416,8 +419,9 @@
       const verified = normalizeCell(row[COLS.verified]);
       const submit = normalizeCell(row[COLS.submit]);
       const auditor = normalizeCell(row[COLS.auditor]);
-      const dist = normalizeCell(row[COLS.dist]);
       const shopOpen = normalizeCell(row[COLS.shopOpen]);
+      // Distance removed from UI: we do NOT show distance pill
+      // const dist = normalizeCell(row[COLS.dist]);   // intentionally not used
 
       const headHtml = `
         <div class="cardHead">
@@ -433,7 +437,7 @@
           <div class="pillRow">
             <div class="pill">Verified: ${escapeHtml(verified || "NA")}</div>
             <div class="pill">Shop: ${escapeHtml(shopOpen || "NA")}</div>
-            <div class="pill">Distance: ${escapeHtml(dist || "NA")}</div>
+            <!-- Distance pill is completely removed as requested -->
           </div>
         </div>
       `;
@@ -441,10 +445,16 @@
       const lat = normalizeCell(row[COLS.lat]);
       const lng = normalizeCell(row[COLS.long]);
 
-      const filledItems = COLS.desc
+      // Build description items BUT exclude Remarks & During_Purchase_SKU_Details
+      let filledItems = COLS.desc
         .map(k => ({ k, v: cleanWeirdDateStrings(k, row[k]) }))
         .map(x => ({ k: x.k, v: normalizeCell(x.v) }))
-        .filter(item => item.v !== "");
+        .filter(item => {
+          if (item.v === "") return false;
+          // EXCLUDE the forbidden fields: Remarks and During_Purchase_SKU_Details
+          if (HIDDEN_DESC_FIELDS.has(item.k)) return false;
+          return true;
+        });
 
       const kvHtml = filledItems.map(item => `
         <div class="kvLine" title="${escapeAttr(displayKeyLabel(item.k) + ': ' + item.v)}">
@@ -465,7 +475,7 @@
           ${
             filledItems.length
               ? `<div class="kvList">${kvHtml}</div>`
-              : `<div class="kvEmpty">No audit fields filled for this outlet.</div>`
+              : `<div class="kvEmpty">No audit fields filled for this outlet (excluding Remarks / During Purchase SKU).</div>`
           }
         </div>
       `;
@@ -494,7 +504,7 @@
       const card = document.createElement("div");
       card.className = "card";
 
-      // ✅ If user selects a single photo type, render 1 column so it doesn't look stupid with empty space
+      // dynamic column count for single photo filter
       const cols = Math.max(1, Math.min(4, photosToShow.length));
       card.innerHTML =
         headHtml +
@@ -547,8 +557,8 @@
 
         const hay = [
           r[COLS.rtr], r[COLS.outlet], r[COLS.town], r[COLS.auditor],
-          r[COLS.shopOpen], r[COLS.dist],
-          r["Remarks"], r["Customer_Feedback"], r["Spinz_Stock_SKUs"],
+          r[COLS.shopOpen],
+          r["Customer_Feedback"], r["Spinz_Stock_SKUs"],
         ].map(x => lower(x)).join(" | ");
         return hay.includes(term);
       });
